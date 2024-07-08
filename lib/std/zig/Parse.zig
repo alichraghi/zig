@@ -3591,14 +3591,13 @@ fn parseSuffixOp(p: *Parse, lhs: Node.Index) !Node.Index {
 ///
 /// ContainerDeclType
 ///     <- KEYWORD_struct (LPAREN Expr RPAREN)?
-///      / KEYWORD_opaque
+///      / KEYWORD_opaque (LPAREN Expr RPAREN)?
 ///      / KEYWORD_enum (LPAREN Expr RPAREN)?
 ///      / KEYWORD_union (LPAREN (KEYWORD_enum (LPAREN Expr RPAREN)? / Expr) RPAREN)?
 fn parseContainerDeclAuto(p: *Parse) !Node.Index {
     const main_token = p.nextToken();
     const arg_expr = switch (p.token_tags[main_token]) {
-        .keyword_opaque => null_node,
-        .keyword_struct, .keyword_enum => blk: {
+        .keyword_struct, .keyword_enum, .keyword_opaque => blk: {
             if (p.eatToken(.l_paren)) |_| {
                 const expr = try p.expectExpr();
                 _ = try p.expectToken(.r_paren);

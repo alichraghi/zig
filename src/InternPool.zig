@@ -3900,6 +3900,8 @@ pub const Tag = enum(u8) {
         decl: DeclIndex,
         /// Contains the declarations inside this opaque.
         namespace: OptionalNamespaceIndex,
+        /// The type provided by assembly.
+        asm_type: Index,
         /// The index of the `opaque_decl` instruction.
         zir_index: TrackedInst.Index,
         /// `std.math.maxInt(u32)` indicates this type is reified.
@@ -7308,6 +7310,7 @@ pub fn getGeneratedTagEnumType(ip: *InternPool, gpa: Allocator, ini: GeneratedTa
 
 pub const OpaqueTypeInit = struct {
     has_namespace: bool,
+    asm_type: Index,
     key: union(enum) {
         declared: struct {
             zir_index: TrackedInst.Index,
@@ -7342,6 +7345,7 @@ pub fn getOpaqueType(ip: *InternPool, gpa: Allocator, ini: OpaqueTypeInit) Alloc
     const extra_index = ip.addExtraAssumeCapacity(Tag.TypeOpaque{
         .decl = undefined, // set by `finish`
         .namespace = .none,
+        .asm_type = ini.asm_type,
         .zir_index = switch (ini.key) {
             inline else => |x| x.zir_index,
         },

@@ -91,39 +91,12 @@ fn containerDecl(
     block: ?*Block,
     full: Ast.full.ContainerDecl,
 ) !void {
-    const tree = astrl.tree;
-    const token_tags = tree.tokens.items(.tag);
-    switch (token_tags[full.ast.main_token]) {
-        .keyword_struct => {
-            if (full.ast.arg != 0) {
-                _ = try astrl.expr(full.ast.arg, block, ResultInfo.type_only);
-            }
-            for (full.ast.members) |member_node| {
-                _ = try astrl.expr(member_node, block, ResultInfo.none);
-            }
-        },
-        .keyword_union => {
-            if (full.ast.arg != 0) {
-                _ = try astrl.expr(full.ast.arg, block, ResultInfo.type_only);
-            }
-            for (full.ast.members) |member_node| {
-                _ = try astrl.expr(member_node, block, ResultInfo.none);
-            }
-        },
-        .keyword_enum => {
-            if (full.ast.arg != 0) {
-                _ = try astrl.expr(full.ast.arg, block, ResultInfo.type_only);
-            }
-            for (full.ast.members) |member_node| {
-                _ = try astrl.expr(member_node, block, ResultInfo.none);
-            }
-        },
-        .keyword_opaque => {
-            for (full.ast.members) |member_node| {
-                _ = try astrl.expr(member_node, block, ResultInfo.none);
-            }
-        },
-        else => unreachable,
+    if (full.ast.arg != 0) {
+        _ = try astrl.expr(full.ast.arg, block, ResultInfo.type_only);
+    }
+
+    for (full.ast.members) |member_node| {
+        _ = try astrl.expr(member_node, block, ResultInfo.none);
     }
 }
 

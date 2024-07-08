@@ -1915,6 +1915,12 @@ const Writer = struct {
 
         var extra_index: usize = extra.end;
 
+        const asm_type_ref = if (small.has_asm_type) blk: {
+            const asm_type_ref = @as(Zir.Inst.Ref, @enumFromInt(self.code.extra[extra_index]));
+            extra_index += 1;
+            break :blk asm_type_ref;
+        } else .none;
+
         const captures_len = if (small.has_captures_len) blk: {
             const captures_len = self.code.extra[extra_index];
             extra_index += 1;
@@ -1941,6 +1947,11 @@ const Writer = struct {
                 extra_index += 1;
             }
             try stream.writeAll(" }, ");
+        }
+
+        if (asm_type_ref != .none) {
+            try self.writeInstRef(stream, asm_type_ref);
+            try stream.writeAll(", ");
         }
 
         if (decls_len == 0) {

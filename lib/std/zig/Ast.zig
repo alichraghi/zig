@@ -3380,7 +3380,7 @@ pub const Node = struct {
         /// Same as ContainerDeclTwo except there is known to be a trailing comma
         /// or semicolon before the rbrace.
         container_decl_two_trailing,
-        /// `struct(lhs)` / `union(lhs)` / `enum(lhs)`. `SubRange[rhs]`.
+        /// `struct(lhs)` / `union(lhs)` / `opaque(lhs)` / `enum(lhs)`. `SubRange[rhs]`.
         container_decl_arg,
         /// Same as container_decl_arg but there is known to be a trailing
         /// comma or semicolon before the rbrace.

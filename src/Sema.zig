@@ -3376,6 +3376,13 @@ fn zirOpaqueDecl(
 
     const tracked_inst = try ip.trackZir(gpa, block.getFileScope(mod), inst);
     const src: LazySrcLoc = .{ .base_node_inst = tracked_inst, .offset = LazySrcLoc.Offset.nodeOffset(0) };
+    const asm_type_src: LazySrcLoc = .{ .base_node_inst = tracked_inst, .offset = .{ .node_offset_container_tag = 0 } };
+
+    const asm_type_ref = if (small.has_asm_type) blk: {
+        const asm_type_ref: Zir.Inst.Ref = @enumFromInt(sema.code.extra[extra_index]);
+        extra_index += 1;
+        break :blk asm_type_ref;
+    } else .none;
 
     const captures_len = if (small.has_captures_len) blk: {
         const captures_len = sema.code.extra[extra_index];
@@ -3392,8 +3399,17 @@ fn zirOpaqueDecl(
     const captures = try sema.getCaptures(block, src, extra_index, captures_len);
     extra_index += captures_len;
 
+    const asm_type = if (asm_type_ref != .none) ty: {
+        const ty = try sema.resolveType(block, asm_type_src, asm_type_ref);
+        if (ty.ip_index != .type_type) {
+            return sema.fail(block, asm_type_src, "expected assembly type, found '{}'", .{ty.fmt(sema.mod)});
+        }
+        break :ty ty.ip_index;
+    } else .none;
+
     const opaque_init: InternPool.OpaqueTypeInit = .{
         .has_namespace = decls_len != 0,
+        .asm_type = asm_type,
         .key = .{ .declared = .{
             .zir_index = tracked_inst,
             .captures = captures,
@@ -21586,6 +21602,7 @@ fn zirReify(
 
             const wip_ty = switch (try ip.getOpaqueType(gpa, .{
                 .has_namespace = false,
+                .asm_type = .none, // TODO(ALI)
                 .key = .{ .reified = .{
                     .zir_index = try ip.trackZir(gpa, block.getFileScope(mod), inst),
                 } },

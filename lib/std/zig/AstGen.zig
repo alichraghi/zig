@@ -5696,8 +5696,6 @@ fn containerDecl(
             return rvalue(gz, ri, decl_inst.toRef(), node);
         },
         .keyword_opaque => {
-            assert(container_decl.ast.arg == 0);
-
             const decl_inst = try gz.reserveInstructionIndex();
 
             var namespace: Scope.Namespace = .{
@@ -5733,8 +5731,14 @@ fn containerDecl(
                 }
             }
 
+            const arg_inst: Zir.Inst.Ref = if (container_decl.ast.arg != 0)
+                try comptimeExpr(&block_scope, &namespace.base, coerced_type_ri, container_decl.ast.arg)
+            else
+                .none;
+
             try gz.setOpaque(decl_inst, .{
                 .src_node = node,
+                .asm_type = arg_inst,
                 .captures_len = @intCast(namespace.captures.count()),
                 .decls_len = decl_count,
             });
@@ -13300,6 +13304,7 @@ const GenZir = struct {
 
     fn setOpaque(gz: *GenZir, inst: Zir.Inst.Index, args: struct {
         src_node: Ast.Node.Index,
+        asm_type: Zir.Inst.Ref,
         captures_len: u32,
         decls_len: u32,
     }) !void {
@@ -13314,6 +13319,9 @@ const GenZir = struct {
             .src_node = args.src_node,
         });
 
+        if (args.asm_type != .none) {
+            astgen.extra.appendAssumeCapacity(@intFromEnum(args.asm_type));
+        }
         if (args.captures_len != 0) {
             astgen.extra.appendAssumeCapacity(args.captures_len);
         }
@@ -13325,6 +13333,7 @@ const GenZir = struct {
             .data = .{ .extended = .{
                 .opcode = .opaque_decl,
                 .small = @bitCast(Zir.Inst.OpaqueDecl.Small{
+                    .has_asm_type = args.asm_type != .none,
                     .has_captures_len = args.captures_len != 0,
                     .has_decls_len = args.decls_len != 0,
                     .name_strategy = gz.anon_name_strategy,

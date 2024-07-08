@@ -3199,20 +3199,22 @@ pub const Inst = struct {
     };
 
     /// Trailing:
-    /// 0. captures_len: u32, // if has_captures_len
-    /// 1. decls_len: u32, // if has_decls_len
-    /// 2. capture: Capture, // for every captures_len
-    /// 3. decl: Index, // for every decls_len; points to a `declaration` instruction
+    /// 0. asm_type: Ref, // if has_asm_type
+    /// 1. captures_len: u32, // if has_captures_len
+    /// 2. decls_len: u32, // if has_decls_len
+    /// 3. capture: Capture, // for every captures_len
+    /// 4. decl: Index, // for every decls_len; points to a `declaration` instruction
     pub const OpaqueDecl = struct {
         src_line: u32,
         /// This node provides a new absolute baseline node for all instructions within this struct.
         src_node: Ast.Node.Index,
 
         pub const Small = packed struct {
+            has_asm_type: bool,
             has_captures_len: bool,
             has_decls_len: bool,
             name_strategy: NameStrategy,
-            _: u12 = undefined,
+            _: u11 = undefined,
         };
     };
 
@@ -3594,6 +3596,7 @@ pub fn declIterator(zir: Zir, decl_inst: Zir.Inst.Index) DeclIterator {
                 .opaque_decl => {
                     const small: Inst.OpaqueDecl.Small = @bitCast(extended.small);
                     var extra_index: u32 = @intCast(extended.operand + @typeInfo(Inst.OpaqueDecl).Struct.fields.len);
+                    extra_index += @intFromBool(small.has_asm_type);
                     const decls_len = if (small.has_decls_len) decls_len: {
                         const decls_len = zir.extra[extra_index];
                         extra_index += 1;
