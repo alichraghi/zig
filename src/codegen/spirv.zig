@@ -12,6 +12,7 @@ const Value = @import("../Value.zig");
 const Air = @import("../Air.zig");
 const Liveness = @import("../Liveness.zig");
 const InternPool = @import("../InternPool.zig");
+const target_util = @import("../target.zig");
 
 const spec = @import("spirv/spec.zig");
 const Opcode = spec.Opcode;
@@ -464,7 +465,7 @@ const NavGen = struct {
 
         const zcu = self.pt.zcu;
         const ty = Type.fromInterned(zcu.intern_pool.typeOf(val));
-        const decl_ptr_ty_id = try self.ptrType(ty, .Generic, .indirect);
+        const decl_ptr_ty_id = try self.ptrType(ty, self.spvStorageClass(.generic), .indirect);
 
         const spv_decl_index = blk: {
             const entry = try self.object.uav_link.getOrPut(self.object.gpa, .{ val, .Function });
@@ -1145,7 +1146,7 @@ const NavGen = struct {
 
         // Uav refs are always generic.
         assert(ty.ptrAddressSpace(zcu) == .generic);
-        const decl_ptr_ty_id = try self.ptrType(uav_ty, .Generic, .indirect);
+        const decl_ptr_ty_id = try self.ptrType(uav_ty, self.spvStorageClass(ty.ptrAddressSpace(zcu)), .indirect);
         const ptr_id = try self.resolveUav(uav.val);
 
         if (decl_ptr_ty_id != ty_id) {
@@ -1261,6 +1262,10 @@ const NavGen = struct {
         if (entry.found_existing) {
             const fwd_id = entry.value_ptr.ty_id;
             if (!entry.value_ptr.fwd_emitted) {
+                if (self.spv.hasFeature(.shader)) {
+                    return self.fail("recursive pointers on logical pointer", .{});
+                }
+
                 try self.spv.sections.types_globals_constants.emit(self.spv.gpa, .OpTypeForwardPointer, .{
                     .pointer_type = fwd_id,
                     .storage_class = storage_class,
@@ -4229,7 +4234,8 @@ const NavGen = struct {
         defer self.gpa.free(ids);
 
         const result_id = self.spv.allocId();
-        if (self.spv.hasFeature(.kernel)) {
+
+        if (self.spv.hasFeature(.addresses)) {
             try self.func.body.emit(self.spv.gpa, .OpInBoundsPtrAccessChain, .{
                 .id_result_type = result_ty_id,
                 .id_result = result_id,
@@ -4237,15 +4243,17 @@ const NavGen = struct {
                 .element = element,
                 .indexes = ids,
             });
-        } else {
-            try self.func.body.emit(self.spv.gpa, .OpPtrAccessChain, .{
-                .id_result_type = result_ty_id,
-                .id_result = result_id,
-                .base = base,
-                .element = element,
-                .indexes = ids,
-            });
+            return result_id;
         }
+
+        try self.func.body.emit(self.spv.gpa, .OpPtrAccessChain, .{
+            .id_result_type = result_ty_id,
+            .id_result = result_id,
+            .base = base,
+            .element = element,
+            .indexes = ids,
+        });
+
         return result_id;
     }
 
@@ -5292,7 +5300,7 @@ const NavGen = struct {
         /// The final storage class of the pointer. This may be either `.Generic` or `.Function`.
         /// In either case, the local is allocated in the `.Function` storage class, and optionally
         /// cast back to `.Generic`.
-        storage_class: StorageClass = .Generic,
+        storage_class: StorageClass,
     };
 
     // Allocate a function-local variable, with possible initializer.
@@ -5332,9 +5340,10 @@ const NavGen = struct {
     fn airAlloc(self: *NavGen, inst: Air.Inst.Index) !?IdRef {
         const zcu = self.pt.zcu;
         const ptr_ty = self.typeOfIndex(inst);
-        assert(ptr_ty.ptrAddressSpace(zcu) == .generic);
         const child_ty = ptr_ty.childType(zcu);
-        return try self.alloc(child_ty, .{});
+        return try self.alloc(child_ty, .{
+            .storage_class = self.spvStorageClass(ptr_ty.ptrAddressSpace(zcu)),
+        });
     }
 
     fn airArg(self: *NavGen) IdRef {
