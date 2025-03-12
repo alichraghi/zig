@@ -3268,11 +3268,17 @@ const NavGen = struct {
         is_volatile: bool = false,
     };
 
-    fn load(self: *NavGen, value_ty: Type, ptr_id: IdRef, options: MemoryOptions) !IdRef {
+    fn load(self: *NavGen, value_ty: Type, ptr_id: IdRef, storage_class: StorageClass, options: MemoryOptions) !IdRef {
+        const zcu = self.pt.zcu;
+        const alignment: u32 = @intCast(value_ty.abiAlignment(zcu).toByteUnits().?);
         const indirect_value_ty_id = try self.resolveType(value_ty, .indirect);
         const result_id = self.spv.allocId();
         const access = spec.MemoryAccess.Extended{
             .Volatile = options.is_volatile,
+            .Aligned = switch (storage_class) {
+                .PhysicalStorageBuffer => .{ .literal_integer = alignment },
+                else => null,
+            },
         };
         try self.func.body.emit(self.spv.gpa, .OpLoad, .{
             .id_result_type = indirect_value_ty_id,
@@ -4597,7 +4603,7 @@ const NavGen = struct {
                 .id_result = casted_ptr_id,
                 .operand = tmp_id,
             });
-            break :blk try self.load(dst_ty, casted_ptr_id, .{});
+            break :blk try self.load(dst_ty, casted_ptr_id, .Function, .{});
         };
 
         // Because strange integers use sign-extended representation, we may need to normalize
@@ -4983,11 +4989,17 @@ const NavGen = struct {
         const index_id = try self.resolve(bin_op.rhs);
 
         const ptr_ty = slice_ty.slicePtrFieldType(zcu);
+        const storage_class = self.spvStorageClass(ptr_ty.ptrAddressSpace(zcu));
         const ptr_ty_id = try self.resolveType(ptr_ty, .direct);
 
         const slice_ptr = try self.extractField(ptr_ty, slice_id, 0);
         const elem_ptr = try self.ptrAccessChain(ptr_ty_id, slice_ptr, index_id, &.{});
-        return try self.load(slice_ty.childType(zcu), elem_ptr, .{ .is_volatile = slice_ty.isVolatilePtr(zcu) });
+        return try self.load(
+            slice_ty.childType(zcu),
+            elem_ptr,
+            storage_class,
+            .{ .is_volatile = slice_ty.isVolatilePtr(zcu) },
+        );
     }
 
     fn ptrElemPtr(self: *NavGen, ptr_ty: Type, ptr_id: IdRef, index_id: IdRef) !IdRef {
@@ -5089,10 +5101,16 @@ const NavGen = struct {
         const bin_op = self.air.instructions.items(.data)[@intFromEnum(inst)].bin_op;
         const ptr_ty = self.typeOf(bin_op.lhs);
         const elem_ty = self.typeOfIndex(inst);
+        const storage_class = self.spvStorageClass(ptr_ty.ptrAddressSpace(zcu));
         const ptr_id = try self.resolve(bin_op.lhs);
         const index_id = try self.resolve(bin_op.rhs);
         const elem_ptr_id = try self.ptrElemPtr(ptr_ty, ptr_id, index_id);
-        return try self.load(elem_ty, elem_ptr_id, .{ .is_volatile = ptr_ty.isVolatilePtr(zcu) });
+        return try self.load(
+            elem_ty,
+            elem_ptr_id,
+            storage_class,
+            .{ .is_volatile = ptr_ty.isVolatilePtr(zcu) },
+        );
     }
 
     fn airVectorStoreElem(self: *NavGen, inst: Air.Inst.Index) !void {
@@ -5218,7 +5236,7 @@ const NavGen = struct {
         // Just leave the padding fields uninitialized...
         // TODO: Or should we initialize them with undef explicitly?
 
-        return try self.load(ty, tmp_id, .{});
+        return try self.load(ty, tmp_id, .Function, .{});
     }
 
     fn airUnionInit(self: *NavGen, inst: Air.Inst.Index) !?IdRef {
@@ -5298,7 +5316,7 @@ const NavGen = struct {
                         .id_result = active_pl_ptr_id,
                         .operand = pl_ptr_id,
                     });
-                    return try self.load(field_ty, active_pl_ptr_id, .{});
+                    return try self.load(field_ty, active_pl_ptr_id, .Function, .{});
                 },
             },
             else => unreachable,
@@ -5739,7 +5757,7 @@ const NavGen = struct {
         }
 
         if (maybe_block_result_var_id) |block_result_var_id| {
-            return try self.load(ty, block_result_var_id, .{});
+            return try self.load(ty, block_result_var_id, .Function, .{});
         }
 
         return null;
@@ -5894,10 +5912,11 @@ const NavGen = struct {
         const ty_op = self.air.instructions.items(.data)[@intFromEnum(inst)].ty_op;
         const ptr_ty = self.typeOf(ty_op.operand);
         const elem_ty = self.typeOfIndex(inst);
+        const storage_class = self.spvStorageClass(ptr_ty.ptrAddressSpace(zcu));
         const operand = try self.resolve(ty_op.operand);
         if (!ptr_ty.isVolatilePtr(zcu) and self.liveness.isUnused(inst)) return null;
 
-        return try self.load(elem_ty, operand, .{ .is_volatile = ptr_ty.isVolatilePtr(zcu) });
+        return try self.load(elem_ty, operand, storage_class, .{ .is_volatile = ptr_ty.isVolatilePtr(zcu) });
     }
 
     fn airStore(self: *NavGen, inst: Air.Inst.Index) !void {
@@ -5939,6 +5958,7 @@ const NavGen = struct {
         const un_op = self.air.instructions.items(.data)[@intFromEnum(inst)].un_op;
         const ptr_ty = self.typeOf(un_op);
         const ret_ty = ptr_ty.childType(zcu);
+        const storage_class = self.spvStorageClass(ptr_ty.ptrAddressSpace(zcu));
 
         if (!ret_ty.hasRuntimeBitsIgnoreComptime(zcu)) {
             const fn_info = zcu.typeToFunc(zcu.navValue(self.owner_nav).typeOf(zcu)).?;
@@ -5954,7 +5974,7 @@ const NavGen = struct {
         }
 
         const ptr = try self.resolve(un_op);
-        const value = try self.load(ret_ty, ptr, .{ .is_volatile = ptr_ty.isVolatilePtr(zcu) });
+        const value = try self.load(ret_ty, ptr, storage_class, .{ .is_volatile = ptr_ty.isVolatilePtr(zcu) });
         try self.func.body.emit(self.spv.gpa, .OpReturnValue, .{
             .value = value,
         });
@@ -6121,6 +6141,7 @@ const NavGen = struct {
         const un_op = self.air.instructions.items(.data)[@intFromEnum(inst)].un_op;
         const operand_id = try self.resolve(un_op);
         const operand_ty = self.typeOf(un_op);
+        const storage_class = self.spvStorageClass(operand_ty.ptrAddressSpace(zcu));
         const optional_ty = if (is_pointer) operand_ty.childType(zcu) else operand_ty;
         const payload_ty = optional_ty.optionalChild(zcu);
 
@@ -6129,7 +6150,7 @@ const NavGen = struct {
         if (optional_ty.optionalReprIsPayload(zcu)) {
             // Pointer payload represents nullability: pointer or slice.
             const loaded_id = if (is_pointer)
-                try self.load(optional_ty, operand_id, .{})
+                try self.load(optional_ty, operand_id, storage_class, .{})
             else
                 operand_id;
 
@@ -6159,13 +6180,12 @@ const NavGen = struct {
         const is_non_null_id = blk: {
             if (is_pointer) {
                 if (payload_ty.hasRuntimeBitsIgnoreComptime(zcu)) {
-                    const storage_class = self.spvStorageClass(operand_ty.ptrAddressSpace(zcu));
                     const bool_ptr_ty_id = try self.ptrType(Type.bool, storage_class, .indirect);
                     const tag_ptr_id = try self.accessChain(bool_ptr_ty_id, operand_id, &.{1});
-                    break :blk try self.load(Type.bool, tag_ptr_id, .{});
+                    break :blk try self.load(Type.bool, tag_ptr_id, storage_class, .{});
                 }
 
-                break :blk try self.load(Type.bool, operand_id, .{});
+                break :blk try self.load(Type.bool, operand_id, storage_class, .{});
             }
 
             break :blk if (payload_ty.hasRuntimeBitsIgnoreComptime(zcu))
@@ -6717,7 +6737,7 @@ const NavGen = struct {
         const spv_decl_index = try self.spv.builtin(ptr_ty_id, builtin);
         try self.func.decl_deps.put(self.spv.gpa, spv_decl_index, {});
         const ptr = self.spv.declPtr(spv_decl_index).result_id;
-        const vec = try self.load(vec_ty, ptr, .{});
+        const vec = try self.load(vec_ty, ptr, .Input, .{});
         return try self.extractVectorComponent(result_ty, vec, dimension);
     }
 
