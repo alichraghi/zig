@@ -6635,8 +6635,12 @@ const NavGen = struct {
                 if (input_ty.zigTypeTag(zcu) == .type) {
                     // This assembly input is a type instead of a value.
                     // That's fine for now, just make sure to resolve it as such.
-                    const val = (try self.air.value(input, self.pt)).?;
-                    const ty_id = try self.resolveType(val.toType(), .direct);
+                    const ty_id = blk: {
+                        if (try self.air.value(input, self.pt)) |val| {
+                            break :blk try self.resolveType(val.toType(), .direct);
+                        }
+                        break :blk try self.resolve(input);
+                    };
                     try as.value_map.put(as.gpa, name, .{ .ty = ty_id });
                 } else {
                     const ty_id = try self.resolveType(input_ty, .direct);
@@ -6706,7 +6710,7 @@ const NavGen = struct {
 
             switch (result) {
                 .just_declared, .unresolved_forward_reference => unreachable,
-                .ty => return self.fail("cannot return spir-v type as value from assembly", .{}),
+                .ty => |ref| return ref,
                 .value => |ref| return ref,
                 .constant, .string => return self.fail("cannot return constant from assembly", .{}),
             }
