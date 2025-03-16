@@ -248,6 +248,7 @@ const UnpackValueBits = struct {
             .struct_type,
             .tuple_type,
             .union_type,
+            .image_type,
             .opaque_type,
             .enum_type,
             .func_type,

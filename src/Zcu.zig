@@ -247,6 +247,8 @@ pub const BuiltinDecl = enum {
     ExternOptions,
     BranchHint,
 
+    ImageType,
+
     Type,
     @"Type.Fn",
     @"Type.Fn.Param",
@@ -344,6 +346,8 @@ pub const BuiltinDecl = enum {
             .@"Type.Opaque",
             .@"Type.Declaration",
             => .type,
+
+            .ImageType => .type,
 
             .panic => .type,
 
@@ -2433,7 +2437,7 @@ pub const LazySrcLoc = struct {
                 .union_decl => zir.extraData(Zir.Inst.UnionDecl, inst.data.extended.operand).data.src_node,
                 .enum_decl => zir.extraData(Zir.Inst.EnumDecl, inst.data.extended.operand).data.src_node,
                 .opaque_decl => zir.extraData(Zir.Inst.OpaqueDecl, inst.data.extended.operand).data.src_node,
-                .reify => zir.extraData(Zir.Inst.Reify, inst.data.extended.operand).data.node,
+                .reify, .reify_image => zir.extraData(Zir.Inst.Reify, inst.data.extended.operand).data.node,
                 else => unreachable,
             },
             else => unreachable,

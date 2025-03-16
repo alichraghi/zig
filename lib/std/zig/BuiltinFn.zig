@@ -112,6 +112,7 @@ pub const Tag = enum {
     trap,
     truncate,
     Type,
+    ImageType,
     type_info,
     type_name,
     TypeOf,
@@ -948,6 +949,13 @@ pub const list = list: {
             "@Type",
             .{
                 .tag = .Type,
+                .param_count = 1,
+            },
+        },
+        .{
+            "@ImageType",
+            .{
+                .tag = .ImageType,
                 .param_count = 1,
             },
         },

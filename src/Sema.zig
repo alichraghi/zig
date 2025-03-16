@@ -1377,6 +1377,7 @@ fn analyzeBodyInner(
                     .int_from_error     => try sema.zirIntFromError(      block, extended),
                     .error_from_int     => try sema.zirErrorFromInt(      block, extended),
                     .reify              => try sema.zirReify(             block, extended, inst),
+                    .reify_image        => try sema.zirReifyImage(        block, extended, inst),
                     .builtin_async_call => try sema.zirBuiltinAsyncCall(  block, extended),
                     .cmpxchg            => try sema.zirCmpxchg(           block, extended),
                     .c_va_arg           => try sema.zirCVaArg(            block, extended),
@@ -22061,6 +22062,126 @@ fn zirReify(
     }
 }
 
+fn zirReifyImage(
+    sema: *Sema,
+    block: *Block,
+    extended: Zir.Inst.Extended.InstData,
+    inst: Zir.Inst.Index,
+) CompileError!Air.Inst.Ref {
+    const pt = sema.pt;
+    const zcu = pt.zcu;
+    const target = zcu.getTarget();
+    const gpa = sema.gpa;
+    const ip = &zcu.intern_pool;
+    const extra = sema.code.extraData(Zir.Inst.Reify, extended.operand).data;
+    const tracked_inst = try block.trackZir(inst);
+    const src: LazySrcLoc = .{
+        .base_node_inst = tracked_inst,
+        .offset = LazySrcLoc.Offset.nodeOffset(0),
+    };
+    const builtin_src: LazySrcLoc = .{
+        .base_node_inst = tracked_inst,
+        .offset = .{
+            .node_offset_builtin_call_arg = .{
+                .builtin_call_node = 0, // `tracked_inst` is precisely the `reify` instruction, so offset is 0
+                .arg_index = 0,
+            },
+        },
+    };
+
+    if (!target.cpu.arch.isSpirV()) {
+        return sema.fail(block, builtin_src, "builtin @ImageType is available when targeting SPIR-V; targeted CPU architecture is {s}", .{@tagName(target.cpu.arch)});
+    }
+
+    const image_type_info_ty = try sema.getBuiltinType(src, .ImageType);
+    const uncasted_operand = try sema.resolveInst(extra.operand);
+    const image_type_info = try sema.coerce(block, image_type_info_ty, uncasted_operand, builtin_src);
+    const val = try sema.resolveConstDefinedValue(block, builtin_src, image_type_info, .{ .simple = .operand_Type });
+    if (try sema.anyUndef(block, builtin_src, val)) {
+        return sema.failWithUseOfUndef(block, builtin_src);
+    }
+    const struct_type = ip.loadStructType(ip.typeOf(val.toIntern()));
+
+    const usage_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "usage", .no_embedded_nulls),
+    ).?);
+    const format_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "format", .no_embedded_nulls),
+    ).?);
+    const dim_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "dim", .no_embedded_nulls),
+    ).?);
+    const depth_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "depth", .no_embedded_nulls),
+    ).?);
+    const access_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "access", .no_embedded_nulls),
+    ).?);
+    const arrayed_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "arrayed", .no_embedded_nulls),
+    ).?);
+    const multisampled_val = try val.fieldValue(pt, struct_type.nameIndex(
+        ip,
+        try ip.getOrPutString(gpa, pt.tid, "multisampled", .no_embedded_nulls),
+    ).?);
+    const format = try sema.interpretBuiltinType(block, builtin_src, format_val, std.builtin.ImageType.Format);
+    const dim = try sema.interpretBuiltinType(block, builtin_src, dim_val, std.builtin.ImageType.Dimensionality);
+    const depth = try sema.interpretBuiltinType(block, builtin_src, depth_val, std.builtin.ImageType.Depth);
+    const access = try sema.interpretBuiltinType(block, builtin_src, access_val, std.builtin.ImageType.Access);
+
+    if (target.os.tag != .opencl and access != .unknown) {
+        return sema.fail(block, builtin_src, "known image access qualifer values are only valid under the 'opencl' os", .{});
+    }
+
+    const arrayed = try sema.interpretBuiltinType(block, builtin_src, arrayed_val, bool);
+    const multisampled = try sema.interpretBuiltinType(block, builtin_src, multisampled_val, bool);
+
+    const usage_tag_val = usage_val.unionTag(zcu).?;
+    const usage_type = ip.loadUnionType(ip.typeOf(usage_val.toIntern()));
+    const usage_tag = try sema.interpretBuiltinType(block, builtin_src, usage_tag_val, @typeInfo(std.builtin.ImageType.Usage).@"union".tag_type.?);
+    const usage_tag_index = usage_type.loadTagType(ip).tagValueIndex(ip, usage_tag_val.toIntern()).?;
+
+    return Air.internedToRef(try ip.get(gpa, pt.tid, .{ .image_type = .{
+        .sampled_type = switch (usage_tag) {
+            .sampled => blk: {
+                const sampled_type_val = try usage_val.fieldValue(pt, usage_tag_index);
+                const sampled_type = sampled_type_val.toType();
+                if (target.os.tag != .opencl and sampled_type.toIntern() == .void_type) {
+                    return sema.fail(block, builtin_src, "'void' type for 'sampled' field is only valid under the 'opencl' os", .{});
+                }
+                if (!sampled_type.hasRuntimeBits(zcu) or (!sampled_type.isRuntimeFloat() and !sampled_type.isInt(zcu))) {
+                    return sema.fail(block, builtin_src, "invalid 'sampled' field value '{}'", .{sampled_type.fmt(pt)});
+                }
+                if (target.os.tag == .vulkan and sampled_type.bitSize(zcu) != 32 and sampled_type.bitSize(zcu) != 64) {
+                    return sema.fail(
+                        block,
+                        builtin_src,
+                        "'sampled' field value must be a 32-bit int, 64-bit int or 32-bit float under the 'vulkan' os",
+                        .{},
+                    );
+                }
+                break :blk sampled_type.toIntern();
+            },
+            .storage => .none,
+        },
+        .flags = .{
+            .usage = usage_tag,
+            .format = format,
+            .dim = dim,
+            .depth = depth,
+            .access = access,
+            .is_arrayed = arrayed,
+            .is_multisampled = multisampled,
+        },
+    } }));
+}
+
 fn reifyEnum(
     sema: *Sema,
     block: *Block,
@@ -27038,6 +27159,7 @@ fn zirBuiltinValue(sema: *Sema, block: *Block, extended: Zir.Inst.Extended.InstD
         .export_options     => try sema.getBuiltinType(src, .ExportOptions),
         .extern_options     => try sema.getBuiltinType(src, .ExternOptions),
         .type_info          => try sema.getBuiltinType(src, .Type),
+        .image_type_info    => try sema.getBuiltinType(src, .ImageType),
         .branch_hint        => try sema.getBuiltinType(src, .BranchHint),
         // zig fmt: on
 
@@ -37044,6 +37166,7 @@ pub fn typeHasOnePossibleValue(sema: *Sema, ty: Type) CompileError!?Value {
             .type_anyerror_union,
             .type_error_set,
             .type_inferred_error_set,
+            .type_image,
             .type_opaque,
             .type_function,
             => null,

@@ -2342,6 +2342,9 @@ pub const Pool = struct {
                     .bits = pt.zcu.errorSetBits(),
                 }, mod, kind),
 
+                // Not for this backend
+                .image_type => unreachable,
+
                 .undef,
                 .simple_value,
                 .variable,

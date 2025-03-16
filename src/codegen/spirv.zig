@@ -827,6 +827,7 @@ const NavGen = struct {
                 .tuple_type,
                 .union_type,
                 .opaque_type,
+                .image_type,
                 .enum_type,
                 .func_type,
                 .error_set_type,
@@ -1488,6 +1489,70 @@ const NavGen = struct {
 
         const section = &self.spv.sections.types_globals_constants;
 
+        switch (ip.indexToKey(ty.toIntern())) {
+            .image_type => |image_type| {
+                const sampled_type_id = blk: {
+                    if (image_type.sampled_type == .none) break :blk try self.intType(.unsigned, 32);
+                    break :blk try self.resolveType(Type.fromInterned(image_type.sampled_type), .direct);
+                };
+                const image_type_id = self.spv.allocId();
+                try section.emit(self.gpa, .OpTypeImage, .{
+                    .id_result = image_type_id,
+                    .sampled_type = sampled_type_id,
+                    .dim = switch (image_type.flags.dim) {
+                        .@"1d" => .@"1D",
+                        .@"2d" => .@"2D",
+                        .@"3d" => .@"3D",
+                        .cube => .Cube,
+                    },
+                    .depth = switch (image_type.flags.depth) {
+                        .not_depth => 0,
+                        .depth => 1,
+                        .unknown => 2,
+                    },
+                    .arrayed = @intFromBool(image_type.flags.is_arrayed),
+                    .ms = @intFromBool(image_type.flags.is_multisampled),
+                    .sampled = switch (image_type.flags.usage) {
+                        .sampled => 1,
+                        .storage => 2,
+                    },
+                    .image_format = switch (image_type.flags.format) {
+                        .unknown => .Unknown,
+                        .rgba32f => .Rgba32f,
+                        .rgba32i => .Rgba32i,
+                        .rgba32u => .Rgba32ui,
+                        .rgba16f => .Rgba16f,
+                        .rgba16i => .Rgba16i,
+                        .rgba16u => .Rgba16ui,
+                        .rgba8unorm => .Rgba8,
+                        .rgba8snorm => .Rgba8Snorm,
+                        .rgba8i => .Rgba8i,
+                        .rgba8u => .Rgba8ui,
+                        .r32f => .R32f,
+                        .r32i => .R32i,
+                        .r32u => .R32ui,
+                    },
+                    .access_qualifier = switch (image_type.flags.access) {
+                        .unknown => null,
+                        .read_only => .ReadOnly,
+                        .write_only => .WriteOnly,
+                        .read_write => .ReadWrite,
+                    },
+                });
+
+                if (image_type.flags.usage == .storage) return image_type_id;
+
+                const sampled_image_type_id = self.spv.allocId();
+                try section.emit(self.gpa, .OpTypeSampledImage, .{
+                    .id_result = sampled_image_type_id,
+                    .image_type = image_type_id,
+                });
+                return image_type_id;
+            },
+            else => {},
+        }
+
+        // TODO: switch by intern pool index
         switch (ty.zigTypeTag(zcu)) {
             .noreturn => {
                 assert(repr == .direct);

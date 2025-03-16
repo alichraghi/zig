@@ -3369,6 +3369,8 @@ pub const Object = struct {
                 .enum_type => try o.lowerType(Type.fromInterned(ip.loadEnumType(t.toIntern()).tag_ty)),
                 .func_type => |func_type| try o.lowerTypeFn(func_type),
                 .error_set_type, .inferred_error_set_type => try o.errorIntType(),
+                // Not for this backend
+                .image_type => unreachable,
                 // values, not types
                 .undef,
                 .simple_value,
@@ -3593,6 +3595,7 @@ pub const Object = struct {
             .struct_type,
             .tuple_type,
             .union_type,
+            .image_type,
             .opaque_type,
             .enum_type,
             .func_type,

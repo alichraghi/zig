@@ -219,6 +219,7 @@ pub fn generateSymbol(
         .tuple_type,
         .union_type,
         .opaque_type,
+        .image_type,
         .enum_type,
         .func_type,
         .error_set_type,

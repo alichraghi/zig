@@ -396,6 +396,28 @@ pub fn print(ty: Type, writer: anytype, pt: Zcu.PerThread) @TypeOf(writer).Error
             try writer.writeAll("anyframe->");
             return print(Type.fromInterned(child), writer, pt);
         },
+        .image_type => |image_type| {
+            try writer.writeAll("@ImageType(.{");
+            switch (image_type.flags.usage) {
+                .sampled => {
+                    try writer.writeAll(".{ .sampled = ");
+                    try print(Type.fromInterned(image_type.sampled_type), writer, pt);
+                    try writer.writeAll(" }, ");
+                },
+                .storage => try writer.writeAll(".storage, "),
+            }
+            try writer.print(
+                ".format = .{s}, .dim = .{s}, .depth = .{s}, .access = .{s}, .arrayed = {}, .multisampled = {} }})",
+                .{
+                    @tagName(image_type.flags.format),
+                    @tagName(image_type.flags.dim),
+                    @tagName(image_type.flags.depth),
+                    @tagName(image_type.flags.access),
+                    image_type.flags.is_arrayed,
+                    image_type.flags.is_multisampled,
+                },
+            );
+        },
 
         // values, not types
         .undef,
@@ -636,6 +658,7 @@ pub fn hasRuntimeBitsInner(
                 }
             },
 
+            .image_type => true,
             .opaque_type => true,
             .enum_type => Type.fromInterned(ip.loadEnumType(ty.toIntern()).tag_ty).hasRuntimeBitsInner(
                 ignore_comptime_only,
@@ -683,6 +706,7 @@ pub fn hasWellDefinedLayout(ty: Type, zcu: *const Zcu) bool {
         .error_set_type,
         .inferred_error_set_type,
         .tuple_type,
+        .image_type,
         .opaque_type,
         .anyframe_type,
         // These are function bodies, not function pointers.
@@ -1139,7 +1163,7 @@ pub fn abiAlignmentInner(
 
                 return .{ .scalar = union_type.flagsUnordered(ip).alignment };
             },
-            .opaque_type => return .{ .scalar = .@"1" },
+            .opaque_type, .image_type => return .{ .scalar = .@"1" },
             .enum_type => return .{
                 .scalar = Type.fromInterned(ip.loadEnumType(ty.toIntern()).tag_ty).abiAlignment(zcu),
             },
@@ -1526,7 +1550,7 @@ pub fn abiSizeInner(
                 assert(union_type.haveLayout(ip));
                 return .{ .scalar = union_type.sizeUnordered(ip) };
             },
-            .opaque_type => unreachable, // no size available
+            .opaque_type, .image_type => unreachable, // no size available
             .enum_type => return .{ .scalar = Type.fromInterned(ip.loadEnumType(ty.toIntern()).tag_ty).abiSize(zcu) },
 
             // values, not types
@@ -1846,7 +1870,7 @@ pub fn bitSizeInner(
 
             return size;
         },
-        .opaque_type => unreachable,
+        .opaque_type, .image_type => unreachable,
         .enum_type => return Type.fromInterned(ip.loadEnumType(ty.toIntern()).tag_ty)
             .bitSizeInner(strat, zcu, tid),
 
@@ -2414,6 +2438,7 @@ pub fn intInfo(starting_ty: Type, zcu: *const Zcu) InternPool.Key.IntType {
             .simple_type => unreachable, // handled via Index enum tag above
 
             .union_type => unreachable,
+            .image_type => unreachable,
             .opaque_type => unreachable,
 
             // values, not types
@@ -2719,6 +2744,7 @@ pub fn onePossibleValue(starting_type: Type, pt: Zcu.PerThread) !?Value {
                 return Value.fromInterned(only);
             },
             .opaque_type => return null,
+            .image_type => return null,
             .enum_type => {
                 const enum_type = ip.loadEnumType(ty.toIntern());
                 switch (enum_type.tag_mode) {
@@ -2966,7 +2992,7 @@ pub fn comptimeOnlyInner(
                 };
             },
 
-            .opaque_type => false,
+            .image_type, .opaque_type => false,
 
             .enum_type => return Type.fromInterned(ip.loadEnumType(ty.toIntern()).tag_ty).comptimeOnlyInner(strat, zcu, tid),
 
@@ -3599,7 +3625,7 @@ pub fn typeDeclSrcLine(ty: Type, zcu: *Zcu) ?u32 {
             .union_decl => zir.extraData(Zir.Inst.UnionDecl, inst.data.extended.operand).data.src_line,
             .enum_decl => zir.extraData(Zir.Inst.EnumDecl, inst.data.extended.operand).data.src_line,
             .opaque_decl => zir.extraData(Zir.Inst.OpaqueDecl, inst.data.extended.operand).data.src_line,
-            .reify => zir.extraData(Zir.Inst.Reify, inst.data.extended.operand).data.src_line,
+            .reify, .reify_image => zir.extraData(Zir.Inst.Reify, inst.data.extended.operand).data.src_line,
             else => unreachable,
         },
         else => unreachable,

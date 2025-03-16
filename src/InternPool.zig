@@ -1987,6 +1987,7 @@ pub const Key = union(enum) {
     enum_type: NamespaceType,
     func_type: FuncType,
     error_set_type: ErrorSetType,
+    image_type: ImageType,
     /// The payload is the function body, either a `func_decl` or `func_instance`.
     inferred_error_set_type: Index,
 
@@ -2199,6 +2200,22 @@ pub const Key = union(enum) {
             std.hash.autoHash(hasher, self.is_generic);
             std.hash.autoHash(hasher, self.is_noinline);
         }
+    };
+
+    pub const ImageType = struct {
+        sampled_type: Index,
+        flags: Flags,
+
+        pub const Flags = packed struct(u32) {
+            usage: std.builtin.ImageType.UsageTag,
+            format: std.builtin.ImageType.Format,
+            dim: std.builtin.ImageType.Dimensionality,
+            depth: std.builtin.ImageType.Depth,
+            access: std.builtin.ImageType.Access,
+            is_arrayed: bool,
+            is_multisampled: bool,
+            _: u19 = 0,
+        };
     };
 
     /// A runtime variable defined in this `Zcu`.
@@ -2609,6 +2626,7 @@ pub const Key = union(enum) {
             .opt_type,
             .anyframe_type,
             .error_union_type,
+            .image_type,
             .simple_type,
             .simple_value,
             .opt,
@@ -2869,6 +2887,10 @@ pub const Key = union(enum) {
             },
             .error_union_type => |a_info| {
                 const b_info = b.error_union_type;
+                return std.meta.eql(a_info, b_info);
+            },
+            .image_type => |a_info| {
+                const b_info = b.image_type;
                 return std.meta.eql(a_info, b_info);
             },
             .simple_type => |a_info| {
@@ -3172,6 +3194,7 @@ pub const Key = union(enum) {
             .anyframe_type,
             .error_union_type,
             .error_set_type,
+            .image_type,
             .inferred_error_set_type,
             .simple_type,
             .struct_type,
@@ -4781,6 +4804,7 @@ pub const Index = enum(u32) {
         type_enum_explicit: DataIsExtraIndexOfEnumExplicit,
         type_enum_nonexhaustive: DataIsExtraIndexOfEnumExplicit,
         simple_type: void,
+        type_image: struct { data: *Key.ImageType },
         type_opaque: struct { data: *Tag.TypeOpaque },
         type_struct: struct { data: *Tag.TypeStruct },
         type_struct_packed: struct { data: *Tag.TypeStructPacked },
@@ -5273,6 +5297,9 @@ pub const Tag = enum(u8) {
     type_enum_nonexhaustive,
     /// A type that can be represented with only an enum tag.
     simple_type,
+    /// An image type.
+    /// data is index of Key.ImageType in extra.
+    type_image,
     /// An opaque type.
     /// data is index of Tag.TypeOpaque in extra.
     type_opaque,
@@ -5545,6 +5572,7 @@ pub const Tag = enum(u8) {
         .type_enum_explicit = enum_explicit_encoding,
         .type_enum_nonexhaustive = enum_explicit_encoding,
         .simple_type = .{ .summary = .@"{.index%value#.}", .index = SimpleType },
+        .type_image = .{ .summary = .@"image_type{%summary#\"}", .payload = Key.ImageType },
         .type_opaque = .{
             .summary = .@"{.payload.name%summary#\"}",
             .payload = TypeOpaque,
@@ -6963,6 +6991,7 @@ pub fn indexToKey(ip: *const InternPool, index: Index) Key {
             } };
         } },
         .type_function => .{ .func_type = extraFuncType(unwrapped_index.tid, unwrapped_index.getExtra(ip), data) },
+        .type_image => .{ .image_type = extraData(unwrapped_index.getExtra(ip), Key.ImageType, data) },
 
         .undef => .{ .undef = @enumFromInt(data) },
         .opt_null => .{ .opt = .{
@@ -7740,6 +7769,13 @@ pub fn get(ip: *InternPool, gpa: Allocator, tid: Zcu.PerThread.Id, key: Key) All
             items.appendAssumeCapacity(.{
                 .tag = .type_inferred_error_set,
                 .data = @intFromEnum(ies_index),
+            });
+        },
+        .image_type => |image_type| {
+            try extra.ensureUnusedCapacity(@typeInfo(Key.ImageType).@"struct".fields.len);
+            try items.append(.{
+                .tag = .type_image,
+                .data = addExtraAssumeCapacity(extra, image_type),
             });
         },
         .simple_type => |simple_type| {
@@ -10191,6 +10227,7 @@ fn addExtraAssumeCapacity(extra: Local.Extra.Mutable, item: anytype) u32 {
             Tag.TypeStruct.Flags,
             Tag.TypeStructPacked.Flags,
             Tag.Variable.Flags,
+            Key.ImageType.Flags,
             => @bitCast(@field(item, field.name)),
 
             else => @compileError("bad field type: " ++ @typeName(field.type)),
@@ -10252,6 +10289,7 @@ fn extraDataTrail(extra: Local.Extra, comptime T: type, index: u32) struct { dat
             Tag.TypeStruct.Flags,
             Tag.TypeStructPacked.Flags,
             Tag.Variable.Flags,
+            Key.ImageType.Flags,
             FuncAnalysis,
             => @bitCast(extra_item),
 
@@ -10886,6 +10924,7 @@ fn dumpStatsFallible(ip: *const InternPool, arena: Allocator) anyerror!void {
                 .type_optional => 0,
                 .type_anyframe => 0,
                 .type_error_union => @sizeOf(Key.ErrorUnionType),
+                .type_image => @sizeOf(Key.ImageType),
                 .type_anyerror_union => 0,
                 .type_error_set => b: {
                     const info = extraData(extra_list, Tag.ErrorSet, data);
@@ -11117,6 +11156,7 @@ fn dumpAllFallible(ip: *const InternPool) anyerror!void {
                 .type_enum_explicit,
                 .type_enum_nonexhaustive,
                 .type_enum_auto,
+                .type_image,
                 .type_opaque,
                 .type_struct,
                 .type_struct_packed,
@@ -11828,6 +11868,7 @@ pub fn typeOf(ip: *const InternPool, index: Index) Index {
                 .type_enum_auto,
                 .type_enum_explicit,
                 .type_enum_nonexhaustive,
+                .type_image,
                 .type_opaque,
                 .type_struct,
                 .type_struct_packed,
@@ -12187,6 +12228,7 @@ pub fn zigTypeTag(ip: *const InternPool, index: Index) std.builtin.TypeId {
 
             .simple_type => unreachable, // handled via Index tag above
 
+            .type_image => .@"opaque",
             .type_opaque => .@"opaque",
 
             .type_struct,

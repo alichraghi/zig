@@ -905,6 +905,7 @@ fn builtinCall(astrl: *AstRlAnnotate, block: ?*Block, ri: ResultInfo, node: Ast.
         .error_name,
         .set_runtime_safety,
         .Type,
+        .ImageType,
         .c_undef,
         .c_include,
         .wasm_memory_size,
