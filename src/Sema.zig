@@ -20955,8 +20955,7 @@ fn zirReify(
     if (try sema.anyUndef(block, operand_src, Value.fromInterned(union_val.val))) {
         return sema.failWithUseOfUndef(block, operand_src);
     }
-    const tag_index = type_info_ty.unionTagFieldIndex(Value.fromInterned(union_val.tag), zcu).?;
-    switch (@as(std.builtin.TypeId, @enumFromInt(tag_index))) {
+    switch (try sema.interpretBuiltinType(block, src, .fromInterned(union_val.tag), std.builtin.TypeId)) {
         .type => return .type_type,
         .void => return .void_type,
         .bool => return .bool_type,
