@@ -2533,6 +2533,7 @@ pub const Object = struct {
             .comptime_int => unreachable,
             .comptime_float => unreachable,
             .type => unreachable,
+            .asmtype => unreachable,
             .undefined => unreachable,
             .null => unreachable,
             .enum_literal => unreachable,
@@ -12315,6 +12316,7 @@ fn isByRef(ty: Type, zcu: *Zcu) bool {
         .enum_literal,
         .undefined,
         .null,
+        .asmtype,
         .@"opaque",
         => unreachable,
 

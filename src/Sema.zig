@@ -10416,6 +10416,7 @@ fn zirBitcast(sema: *Sema, block: *Block, inst: Zir.Inst.Index) CompileError!Air
         .@"opaque",
         .optional,
         .type,
+        .asmtype,
         .undefined,
         .void,
         => return sema.fail(block, src, "cannot @bitCast to '{}'", .{dest_ty.fmt(pt)}),
@@ -10477,6 +10478,7 @@ fn zirBitcast(sema: *Sema, block: *Block, inst: Zir.Inst.Index) CompileError!Air
         .frame,
         .noreturn,
         .null,
+        .asmtype,
         .@"opaque",
         .optional,
         .type,
@@ -11479,6 +11481,7 @@ fn switchCond(
         .undefined,
         .null,
         .optional,
+        .asmtype,
         .@"opaque",
         .vector,
         .frame,
@@ -12351,6 +12354,7 @@ fn zirSwitchBlock(sema: *Sema, block: *Block, inst: Zir.Inst.Index, operand_is_r
         .undefined,
         .null,
         .optional,
+        .asmtype,
         .@"opaque",
         .vector,
         .frame,
@@ -17105,6 +17109,7 @@ fn zirSizeOf(sema: *Sema, block: *Block, inst: Zir.Inst.Index) CompileError!Air.
         .noreturn,
         .undefined,
         .null,
+        .asmtype,
         .@"opaque",
         => return sema.fail(block, operand_src, "no size available for type '{}'", .{ty.fmt(pt)}),
 
@@ -17146,6 +17151,7 @@ fn zirBitSizeOf(sema: *Sema, block: *Block, inst: Zir.Inst.Index) CompileError!A
         .noreturn,
         .undefined,
         .null,
+        .asmtype,
         .@"opaque",
         => return sema.fail(block, operand_src, "no size available for type '{}'", .{operand_ty.fmt(pt)}),
 
@@ -17449,6 +17455,7 @@ fn zirTypeInfo(sema: *Sema, block: *Block, inst: Zir.Inst.Index) CompileError!Ai
         .type,
         .void,
         .bool,
+        .asmtype,
         .noreturn,
         .comptime_float,
         .comptime_int,
@@ -20959,6 +20966,7 @@ fn zirReify(
         .type => return .type_type,
         .void => return .void_type,
         .bool => return .bool_type,
+        .asmtype => return .asm_type,
         .noreturn => return .noreturn_type,
         .comptime_float => return .comptime_float_type,
         .comptime_int => return .comptime_int_type,
@@ -26604,6 +26612,7 @@ fn explainWhyTypeIsComptimeInner(
         .frame,
         .@"anyframe",
         .void,
+        .asmtype,
         => return,
 
         .@"fn" => {
@@ -26717,6 +26726,7 @@ fn validateExternType(
     const zcu = pt.zcu;
     switch (ty.zigTypeTag(zcu)) {
         .type,
+        .asmtype,
         .comptime_float,
         .comptime_int,
         .enum_literal,
@@ -26785,6 +26795,7 @@ fn explainWhyTypeIsNotExtern(
     const pt = sema.pt;
     const zcu = pt.zcu;
     switch (ty.zigTypeTag(zcu)) {
+        .asmtype,
         .@"opaque",
         .bool,
         .float,
@@ -26872,6 +26883,7 @@ fn validatePackedType(sema: *Sema, ty: Type) !bool {
         .error_set,
         .frame,
         .noreturn,
+        .asmtype,
         .@"opaque",
         .@"anyframe",
         .@"fn",
@@ -26917,6 +26929,7 @@ fn explainWhyTypeIsNotPacked(
         .null,
         .frame,
         .noreturn,
+        .asmtype,
         .@"opaque",
         .error_union,
         .error_set,
@@ -33338,7 +33351,7 @@ const PeerResolveStrategy = enum {
 
     fn select(ty: Type, zcu: *Zcu) PeerResolveStrategy {
         return switch (ty.zigTypeTag(zcu)) {
-            .type, .void, .bool, .@"opaque", .frame, .@"anyframe" => .exact,
+            .type, .void, .bool, .@"opaque", .asmtype, .frame, .@"anyframe" => .exact,
             .noreturn, .undefined => .unknown,
             .null => .nullable,
             .comptime_int => .comptime_int,

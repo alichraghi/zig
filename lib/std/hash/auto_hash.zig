@@ -81,6 +81,7 @@ pub fn hash(hasher: anytype, key: anytype, comptime strat: HashStrategy) void {
         .comptime_float,
         .comptime_int,
         .type,
+        .asmtype,
         .enum_literal,
         .frame,
         .float,

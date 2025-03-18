@@ -1489,6 +1489,7 @@ const NavGen = struct {
         const section = &self.spv.sections.types_globals_constants;
 
         switch (ty.zigTypeTag(zcu)) {
+            .asmtype => unreachable,
             .noreturn => {
                 assert(repr == .direct);
                 return try self.spv.voidType();

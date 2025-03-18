@@ -1748,6 +1748,7 @@ fn isByRef(ty: Type, zcu: *const Zcu, target: *const std.Target) bool {
         .undefined,
         .null,
         .@"opaque",
+        .asmtype,
         => unreachable,
 
         .noreturn,

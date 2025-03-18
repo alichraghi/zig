@@ -149,6 +149,7 @@ fn canSerializeTypeInner(
         .frame,
         .@"anyframe",
         .@"opaque",
+        .asmtype,
         => false,
 
         .@"enum" => |@"enum"| @"enum".is_exhaustive,

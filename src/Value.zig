@@ -3496,6 +3496,7 @@ pub fn pointerDerivationAdvanced(ptr_val: Value, arena: Allocator, pt: Zcu.PerTh
             .null,
             .undefined,
             .enum_literal,
+            .asmtype,
             .@"opaque",
             .@"fn",
             .error_union,
@@ -3771,6 +3772,7 @@ pub fn interpret(val: Value, comptime T: type, pt: Zcu.PerThread) error{ OutOfMe
     return switch (@typeInfo(T)) {
         .type,
         .noreturn,
+        .asmtype,
         .comptime_float,
         .comptime_int,
         .undefined,
@@ -3874,6 +3876,7 @@ pub fn uninterpret(val: anytype, ty: Type, pt: Zcu.PerThread) error{ OutOfMemory
     return switch (@typeInfo(T)) {
         .type,
         .noreturn,
+        .asmtype,
         .comptime_float,
         .comptime_int,
         .undefined,

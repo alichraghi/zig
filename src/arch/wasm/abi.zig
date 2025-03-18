@@ -92,6 +92,7 @@ pub fn classifyType(ty: Type, zcu: *const Zcu) [2]Class {
         .null,
         .@"fn",
         .@"opaque",
+        .asmtype,
         .enum_literal,
         => unreachable,
     }

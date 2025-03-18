@@ -91,6 +91,7 @@ pub fn classifyWindows(ty: Type, zcu: *Zcu) Class {
         .null,
         .@"fn",
         .@"opaque",
+        .asmtype,
         .enum_literal,
         => unreachable,
     }

@@ -457,6 +457,7 @@ pub fn checkType(ty: Type, zcu: *Zcu) bool {
     if (ty.isGenericPoison()) return true;
     return switch (ty.zigTypeTag(zcu)) {
         .type,
+        .asmtype,
         .void,
         .bool,
         .noreturn,

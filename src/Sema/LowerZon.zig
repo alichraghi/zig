@@ -86,6 +86,7 @@ fn checkTypeInner(
         .float,
         .null,
         .@"enum",
+        .asmtype,
         .comptime_float,
         .comptime_int,
         .enum_literal,
@@ -264,6 +265,7 @@ fn lowerExprInner(
 
         .type,
         .noreturn,
+        .asmtype,
         .undefined,
         .error_union,
         .error_set,

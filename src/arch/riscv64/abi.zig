@@ -87,6 +87,7 @@ pub fn classifyType(ty: Type, zcu: *Zcu) Class {
         .null,
         .@"fn",
         .@"opaque",
+        .asmtype,
         .enum_literal,
         .array,
         => unreachable,

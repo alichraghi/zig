@@ -585,6 +585,7 @@ pub const Type = union(enum) {
     @"anyframe": AnyFrame,
     vector: Vector,
     enum_literal: void,
+    asmtype: void,
 
     /// This data structure is used by the Zig language code generation and
     /// therefore must be kept in sync with the compiler implementation.
