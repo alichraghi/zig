@@ -295,6 +295,7 @@ pub fn print(ty: Type, writer: anytype, pt: Zcu.PerThread) @TypeOf(writer).Error
             .c_longlong,
             .c_ulonglong,
             .c_longdouble,
+            .asmtype,
             .anyopaque,
             .bool,
             .void,
@@ -545,6 +546,7 @@ pub fn hasRuntimeBitsInner(
                 .bool,
                 .anyerror,
                 .adhoc_inferred_error_set,
+                .asmtype,
                 .anyopaque,
                 => true,
 
@@ -717,6 +719,7 @@ pub fn hasWellDefinedLayout(ty: Type, zcu: *const Zcu) bool {
 
             .anyerror,
             .adhoc_inferred_error_set,
+            .asmtype,
             .anyopaque,
             .type,
             .comptime_int,
@@ -1029,6 +1032,7 @@ pub fn abiAlignmentInner(
 
             .simple_type => |t| switch (t) {
                 .bool,
+                .asmtype,
                 .anyopaque,
                 => return .{ .scalar = .@"1" },
 
@@ -1455,6 +1459,7 @@ pub fn abiSizeInner(
                     return .{ .scalar = intAbiSize(bits, target) };
                 },
 
+                .asmtype => unreachable,
                 .noreturn => unreachable,
                 .generic_poison => unreachable,
             },
@@ -1796,6 +1801,7 @@ pub fn bitSizeInner(
             .adhoc_inferred_error_set,
             => return zcu.errorSetBits(),
 
+            .asmtype => unreachable,
             .anyopaque => unreachable,
             .type => unreachable,
             .comptime_int => unreachable,
@@ -2640,6 +2646,7 @@ pub fn onePossibleValue(starting_type: Type, pt: Zcu.PerThread) !?Value {
                 .c_longlong,
                 .c_ulonglong,
                 .c_longdouble,
+                .asmtype,
                 .anyopaque,
                 .bool,
                 .type,
@@ -2854,6 +2861,7 @@ pub fn comptimeOnlyInner(
                 .c_longlong,
                 .c_ulonglong,
                 .c_longdouble,
+                .asmtype,
                 .anyopaque,
                 .bool,
                 .void,

@@ -1355,6 +1355,7 @@ pub const Pool = struct {
         switch (ty.toIntern()) {
             .u0_type,
             .i0_type,
+            .asm_type,
             .anyopaque_type,
             .void_type,
             .empty_tuple_type,

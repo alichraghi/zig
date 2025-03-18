@@ -965,6 +965,7 @@ pub const Inst = struct {
         f64_type = @intFromEnum(InternPool.Index.f64_type),
         f80_type = @intFromEnum(InternPool.Index.f80_type),
         f128_type = @intFromEnum(InternPool.Index.f128_type),
+        asm_type = @intFromEnum(InternPool.Index.asm_type),
         anyopaque_type = @intFromEnum(InternPool.Index.anyopaque_type),
         bool_type = @intFromEnum(InternPool.Index.bool_type),
         void_type = @intFromEnum(InternPool.Index.void_type),

@@ -36360,6 +36360,7 @@ pub fn typeHasOnePossibleValue(sema: *Sema, ty: Type) CompileError!?Value {
         .f64_type,
         .f80_type,
         .f128_type,
+        .asm_type,
         .anyopaque_type,
         .bool_type,
         .type_type,

@@ -3421,6 +3421,7 @@ fn updateLazyType(
                 try uleb128(diw, ty.abiSize(zcu));
                 try uleb128(diw, ty.abiAlignment(zcu).toByteUnits().?);
             },
+            .asmtype,
             .anyopaque,
             .void,
             .type,
