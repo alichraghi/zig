@@ -756,7 +756,6 @@ pub const File = struct {
         assert(base.comp.zcu.?.llvm_object == null);
         switch (base.tag) {
             .lld => unreachable,
-            .spirv => unreachable, // see corresponding special case in `Zcu.PerThread.runCodegenInner`
             inline else => |tag| {
                 dev.check(tag.devFeature());
                 return @as(*tag.Type(), @fieldParentPtr("base", base)).updateFunc(pt, func_index, mir);

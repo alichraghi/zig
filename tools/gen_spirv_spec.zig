@@ -70,7 +70,7 @@ pub fn main() !void {
     defer arena.deinit();
 
     const args = try std.process.argsAlloc(allocator);
-    if (args.len != 3) {
+    if (args.len != 2) {
         usageAndExit(args[0], 1);
     }
 
@@ -90,8 +90,6 @@ pub fn main() !void {
 
         try readExtRegistry(&exts, dir, entry.name);
     }
-
-    try readExtRegistry(&exts, std.fs.cwd(), args[2]);
 
     const output_buf = try allocator.alloc(u8, 1024 * 1024);
     var fbs = std.io.fixedBufferStream(output_buf);
@@ -220,6 +218,15 @@ fn render(writer: *std.io.Writer, registry: CoreRegistry, extensions: []const Ex
         \\        }
         \\    }
         \\};
+        \\pub const IdRange = struct {
+        \\    base: u32,
+        \\    len: u32,
+        \\
+        \\    pub fn at(range: IdRange, i: usize) Id {
+        \\        std.debug.assert(i < range.len);
+        \\        return @enumFromInt(range.base + i);
+        \\    }
+        \\};
         \\
         \\pub const LiteralInteger = Word;
         \\pub const LiteralFloat = Word;
@@ -324,7 +331,7 @@ fn renderInstructionSet(
     );
 
     for (extensions) |ext| {
-        try writer.print("{f},\n", .{formatId(ext.name)});
+        try writer.print("{f},\n", .{std.zig.fmtId(ext.name)});
     }
 
     try writer.writeAll(
@@ -357,7 +364,7 @@ fn renderInstructionsCase(
     // but there aren't so many total aliases and that would add more overhead in total. We will
     // just filter those out when needed.
 
-    try writer.print(".{f} => &.{{\n", .{formatId(set_name)});
+    try writer.print(".{f} => &.{{\n", .{std.zig.fmtId(set_name)});
 
     for (instructions) |inst| {
         try writer.print(
@@ -907,7 +914,7 @@ fn parseHexInt(text: []const u8) !u31 {
 fn usageAndExit(arg0: []const u8, code: u8) noreturn {
     const stderr = std.debug.lockStderrWriter(&.{});
     stderr.print(
-        \\Usage: {s} <SPIRV-Headers repository path> <path/to/zig/src/codegen/spirv/extinst.zig.grammar.json>
+        \\Usage: {s} <SPIRV-Headers repository path>
         \\
         \\Generates Zig bindings for SPIR-V specifications found in the SPIRV-Headers
         \\repository. The result, printed to stdout, should be used to update

@@ -57,7 +57,7 @@ fn importBackend(comptime backend: std.builtin.CompilerBackend) type {
         .stage2_powerpc => unreachable,
         .stage2_riscv64 => @import("arch/riscv64/CodeGen.zig"),
         .stage2_sparc64 => @import("arch/sparc64/CodeGen.zig"),
-        .stage2_spirv => @import("codegen/spirv.zig"),
+        .stage2_spirv => @import("arch/spirv/CodeGen.zig"),
         .stage2_wasm => @import("arch/wasm/CodeGen.zig"),
         .stage2_x86, .stage2_x86_64 => @import("arch/x86_64/CodeGen.zig"),
         _ => unreachable,
@@ -102,6 +102,7 @@ pub const AnyMir = union {
     riscv64: if (dev.env.supports(.riscv64_backend)) @import("arch/riscv64/Mir.zig") else noreturn,
     sparc64: if (dev.env.supports(.sparc64_backend)) @import("arch/sparc64/Mir.zig") else noreturn,
     x86_64: if (dev.env.supports(.x86_64_backend)) @import("arch/x86_64/Mir.zig") else noreturn,
+    spirv: if (dev.env.supports(.spirv_backend)) @import("arch/spirv/Mir.zig") else noreturn,
     wasm: if (dev.env.supports(.wasm_backend)) @import("arch/wasm/Mir.zig") else noreturn,
     c: if (dev.env.supports(.c_backend)) @import("codegen/c.zig").Mir else noreturn,
 
@@ -111,6 +112,7 @@ pub const AnyMir = union {
             .stage2_riscv64 => "riscv64",
             .stage2_sparc64 => "sparc64",
             .stage2_x86_64 => "x86_64",
+            .stage2_spirv => "spirv",
             .stage2_wasm => "wasm",
             .stage2_c => "c",
             else => unreachable,
@@ -129,6 +131,7 @@ pub const AnyMir = union {
             .stage2_wasm,
             .stage2_c,
             => |backend_ct| @field(mir, tag(backend_ct)).deinit(gpa),
+            .stage2_spirv => {},
         }
     }
 };
@@ -155,6 +158,7 @@ pub fn generateFunction(
         .stage2_riscv64,
         .stage2_sparc64,
         .stage2_x86_64,
+        .stage2_spirv,
         .stage2_wasm,
         .stage2_c,
         => |backend| {

@@ -884,9 +884,6 @@ pub inline fn backendSupportsFeature(backend: std.builtin.CompilerBackend, compt
             // threads because they would all just be locking the same mutex to
             // protect Builder.
             .stage2_llvm => false,
-            // Same problem. Frontend needs to allow this backend to run in the
-            // linker thread.
-            .stage2_spirv => false,
             // Please do not make any more exceptions. Backends must support
             // being run in a separate thread from now on.
             else => true,
