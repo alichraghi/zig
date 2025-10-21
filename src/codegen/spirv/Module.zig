@@ -574,12 +574,13 @@ pub fn backingIntBits(module: *Module, bits: u16) struct { u16, bool } {
 pub fn intType(module: *Module, signedness: std.builtin.Signedness, bits: u16) !Id {
     assert(bits > 0);
 
-    const target = module.zcu.getTarget();
-    const actual_signedness = switch (target.os.tag) {
-        // Kernel only supports unsigned ints.
-        .opencl, .amdhsa => .unsigned,
-        else => signedness,
-    };
+    // const target = module.zcu.getTarget();
+    // const actual_signedness = switch (target.os.tag) {
+    //     // Kernel only supports unsigned ints.
+    //     .opencl, .amdhsa => .unsigned,
+    //     else => signedness,
+    // };
+    const actual_signedness = signedness;
     const backing_bits, const big_int = module.backingIntBits(bits);
     if (big_int) {
         // TODO: support composite integers larger than 64 bit

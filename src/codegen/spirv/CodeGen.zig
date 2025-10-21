@@ -684,29 +684,12 @@ fn constInt(cg: *CodeGen, ty: Type, value: anytype) !Id {
     }
 
     const final_value: spec.LiteralContextDependentNumber = switch (target.os.tag) {
-        .opencl, .amdhsa => blk: {
-            const value64: u64 = switch (signedness) {
-                .signed => @bitCast(@as(i64, @intCast(value))),
-                .unsigned => @as(u64, @intCast(value)),
-            };
-
-            // Manually truncate the value to the right amount of bits.
-            const truncated_value = if (backing_bits == 64)
-                value64
-            else
-                value64 & (@as(u64, 1) << @intCast(backing_bits)) - 1;
-
-            break :blk switch (backing_bits) {
-                1...32 => .{ .uint32 = @truncate(truncated_value) },
-                33...64 => .{ .uint64 = truncated_value },
-                else => unreachable,
-            };
-        },
-        else => switch (backing_bits) {
+        .opencl, .amdhsa, .vulkan, .opengl => switch (backing_bits) {
             1...32 => if (signedness == .signed) .{ .int32 = @intCast(value) } else .{ .uint32 = @intCast(value) },
-            33...64 => if (signedness == .signed) .{ .int64 = value } else .{ .uint64 = value },
+            33...64 => if (signedness == .signed) .{ .int64 = @intCast(value) } else .{ .uint64 = @intCast(value) },
             else => unreachable,
         },
+        else => unreachable,
     };
 
     const result_id = try cg.module.constant(result_ty_id, final_value);
